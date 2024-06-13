@@ -1,0 +1,22 @@
+{
+  "name": "selfbot-discord",
+  "version": "1.0.0",
+  "main": "dist/main.js",
+  "scripts": {
+    "start": "tsx --no-warnings --env-file=.env ./src/main.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/dotenv": "^8.2.0",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.15.1",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ws": "^8.17.0"
+  }
+}
