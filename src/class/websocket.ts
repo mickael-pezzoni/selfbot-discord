@@ -1,12 +1,14 @@
 import {WebSocket, MessageEvent, ErrorEvent, Event, CloseEvent} from 'ws'
 import { Auth, HelloEvent, User } from '../model';
 import { MsgEvent } from './message-event';
+import { Queue } from './Queue';
 
 export class WebSocketClient {
     #ws?: WebSocket;
     #auth: Auth;
     #url: string;
     #heartbeatInterval?: number;
+    #queue = new Queue();
     #heartbeatIntervalTiemout?: NodeJS.Timeout;
     #cbMsg: (event: MsgEvent) => void;
     constructor(url: string, auth: Auth, cbMsg: (event: MsgEvent) => void) {
@@ -65,20 +67,28 @@ export class WebSocketClient {
         this.ws
         .addEventListener('close', (ev) => this.onClose(ev));
     
-        this.ws.addEventListener('message', (event) => this.onMessage(event));
+        this.ws.addEventListener('message', (event) => {
+            const msgEvent = new MsgEvent({
+                ...event,
+                data: JSON.parse(event.data.toString()),
+            }, this.auth);
+
+            if (msgEvent.isHelloEvent(msgEvent.data)) {
+                this.onMessage(msgEvent)
+            } else {
+                this.#queue.add(() => this.onMessage(msgEvent));
+            }
+        });
     }
 
-    onMessage(messageEvent: MessageEvent): void {
-        const msgEvent = new MsgEvent({
-            ...messageEvent,
-            data: JSON.parse(messageEvent.data.toString()),
-        }, this.auth);
-        if (msgEvent.isHelloEvent()) {
-            this.#heartbeatInterval = (msgEvent.data as HelloEvent).d.heartbeat_interval;
+    async onMessage(messageEvent: MsgEvent): Promise<void> {
+        await messageEvent.initialize();
+        if (messageEvent.isHelloEvent(messageEvent.data)) {
+            this.#heartbeatInterval = messageEvent.data.d.heartbeat_interval;
             console.log('current heartbeatInterval ', this.#heartbeatInterval)
             this.#sendHeartbeatInterval();
-        } else {
-            this.#cbMsg(msgEvent);
+            } else {
+           await this.#cbMsg(messageEvent);
         }
     }
 

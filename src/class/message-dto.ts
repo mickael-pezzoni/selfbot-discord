@@ -23,28 +23,31 @@ export class MessageDto implements CreateMessageDto {
     attachments = [];
     content: string;
     #auth: Auth;
-    constructor(channelId: string, body: {content: string, id: string}, auth: Required<Auth>) {
+    message_reference?: {channel_id: string, message_id: string, type: number};
+    referencesMessages?: Message;
+    constructor(channelId: string, body: {content: string, id: string, referencesMessages?: Message}, auth: Required<Auth>) {
         this.channel_id = channelId;
         this.author = auth.user;
         this.content = body.content;
+        this.referencesMessages = body.referencesMessages;
+        this.setReferenceMessage();
         //this.id = new Snowflake(body.id).next().toString();
         this.#auth = auth;
     }
 
-    private get body(): object {
+    setReferenceMessage(): void {
+        if (this.referencesMessages) {
+            this.message_reference = {
+                channel_id: this.channel_id,
+                message_id: this.referencesMessages?.id ?? '',
+                type: 0
+            }
+        }
+    }
+
+    get body(): object {
         return Object.fromEntries(Object.entries(this).filter(([key]) => key !== '#auth'))
     }
 
-    async send(): Promise<unknown> {
-        const response = await fetch(`${DISCORD_MSG_URL}/${this.channel_id}/messages`,
-            { method: 'POST', body: JSON.stringify(this.body), headers: createHeaders(this.#auth.token)})
-
-
-        if (response.status !== 200) {
-            throw new Error(`Cannot send message {${response.statusText}}` ,);
-        }
-
-        return response.json();
-    }
 
 }

@@ -23,7 +23,7 @@ https://discord.com/developers/docs/topics/gateway#hello-event
 3. Emettre 
 
 */
-
+export const DISCORD_API_URL = 'https://canary.discordapp.com/api/v9';
 export class DiscordClient {
     #auth: Auth
     #webSocket?: WebSocketClient;
@@ -59,7 +59,7 @@ export class DiscordClient {
     }
     
     async authMe(): Promise<User> {
-        const respnose = await fetch(`https://canary.discordapp.com/api/v9/users/@me`, {headers: this.headers});
+        const respnose = await fetch(`${DISCORD_API_URL}/users/@me`, {headers: this.headers});
 
         if (respnose.status !== 200) {
             throw new Error('Your token might be invalid. Please check it again')

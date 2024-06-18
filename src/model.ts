@@ -66,7 +66,9 @@ export interface User {
     nonce: string;
     mentions: any[];
     mention_roles: any[];
+    referenced_message?: Message;
     mention_everyone: boolean;
+    message_reference?: {channel_id: string, message_id: string, type: number}
     id: string;
     flags: number;
     embeds: any[];
@@ -86,3 +88,5 @@ export interface User {
     processId: number;
     increment: number;
   }
+
+  export type AsyncFunction<T, P> = (...args: P[]) => Promise<T>; 
