@@ -3,6 +3,7 @@ import {WebSocket, MessageEvent} from 'ws'
 import { WebSocketClient } from "./websocket";
 import { MsgEvent } from "./message-event";
 import { createHeaders } from "../utils/request.utils";
+import { EventFunction } from "../channel.model";
 
 export const WEBSOCKET_URL = 'wss://gateway.discord.gg/?v=9&encoding=json';
 
@@ -51,11 +52,13 @@ export class DiscordClient {
         return this.#auth.token
     }
 
-    wsConnect(cb: (event: MsgEvent) => void) {
+    wsConnect(cb: EventFunction): WebSocketClient{
         this.#webSocket = new WebSocketClient(WEBSOCKET_URL, {
             token: this.token,
             user: this.user
         }, cb);
+
+        return this.#webSocket;
     }
     
     async authMe(): Promise<User> {

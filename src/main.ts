@@ -1,7 +1,10 @@
 import process from 'node:process';
 import { DiscordClient } from './class/discord_client';
 import { configDotenv } from 'dotenv';
-
+import { writeFile } from 'fs/promises'
+import { ChannelType } from './channel.model';
+import { MsgEvent } from './class/message-event';
+import { CreateMessageEvent } from './model';
 
 
 configDotenv({ path: '.env' })
@@ -15,15 +18,14 @@ if (discordToken === undefined || discordToken === '') {
     const discordClient = new DiscordClient(discordToken);
     await discordClient.initialize();
 
-    console.log(discordClient.user);
-
-    discordClient.wsConnect(async (event) => {
-        if (event.isMsgEvent(event.data)) {
-            if (event.data.d.author.id !== discordClient.user.id) {
-                event.react('%F0%9F%91%8D')
-                //event.reply('Test');
-            }
-        }
+    const websocket = discordClient.wsConnect({
+        [ChannelType.DM]: (event) => onRcvMessage(event, discordClient),
+        [ChannelType.GROUP_DM]: (event) => onRcvMessage(event, discordClient)
     })
 
 })()
+
+
+async function onRcvMessage(event: MsgEvent<CreateMessageEvent>, discordClient: DiscordClient) {
+
+}

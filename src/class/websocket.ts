@@ -1,7 +1,8 @@
 import {WebSocket, MessageEvent, ErrorEvent, Event, CloseEvent} from 'ws'
-import { Auth, HelloEvent, User } from '../model';
+import { Auth, CreateMessageEvent, HelloEvent, User } from '../model';
 import { MsgEvent } from './message-event';
-import { Queue } from './Queue';
+import { Queue } from './queue';
+import { EventFunction } from '../channel.model';
 
 export class WebSocketClient {
     #ws?: WebSocket;
@@ -10,8 +11,8 @@ export class WebSocketClient {
     #heartbeatInterval?: number;
     #queue = new Queue();
     #heartbeatIntervalTiemout?: NodeJS.Timeout;
-    #cbMsg: (event: MsgEvent) => void;
-    constructor(url: string, auth: Auth, cbMsg: (event: MsgEvent) => void) {
+    #cbMsg: EventFunction;
+    constructor(url: string, auth: Auth, cbMsg: EventFunction) {
         this.#auth = auth;
         this.#cbMsg = cbMsg;
         this.#url = url;
@@ -29,6 +30,10 @@ export class WebSocketClient {
         }
 
         return this.#ws;
+    }
+
+    close(): void {
+        this.#ws?.close();
     }
 
     get auth(): Required<Auth> {
@@ -62,37 +67,44 @@ export class WebSocketClient {
     listenEvent(): void {
         this.ws.addEventListener('error', (err) => this.onError(err));
     
-        this.ws.addEventListener('open', (ev) => this.onOpenConnection(ev));
+        this.ws.addEventListener('open', (ev) => this.#onOpenConnection(ev));
     
         this.ws
         .addEventListener('close', (ev) => this.onClose(ev));
     
         this.ws.addEventListener('message', (event) => {
-            const msgEvent = new MsgEvent({
-                ...event,
-                data: JSON.parse(event.data.toString()),
-            }, this.auth);
+            const wsData = JSON.parse(event.data.toString());
 
-            if (msgEvent.isHelloEvent(msgEvent.data)) {
-                this.onMessage(msgEvent)
-            } else {
-                this.#queue.add(() => this.onMessage(msgEvent));
+            if ('op' in wsData && wsData.op === 10) {
+                const msgEvent = new MsgEvent<HelloEvent>({
+                    ...event,
+                    data: JSON.parse(event.data.toString()),
+                }, this.auth);
+    
+                this.#heartbeatInterval = msgEvent.data.d.heartbeat_interval;
+                console.log('current heartbeatInterval ', this.#heartbeatInterval)
+                this.#sendHeartbeatInterval();
+            } else if ('t' in wsData && wsData.t === 'MESSAGE_CREATE') {
+                const msgEvent = new MsgEvent<CreateMessageEvent>({
+                    ...event,
+                    data: JSON.parse(event.data.toString()),
+                }, this.auth);
+                this.#queue.add(() => this.onMessage(msgEvent as MsgEvent<CreateMessageEvent>));
             }
         });
     }
 
-    async onMessage(messageEvent: MsgEvent): Promise<void> {
+    async onMessage(messageEvent: MsgEvent<CreateMessageEvent>): Promise<void> {
         await messageEvent.initialize();
-        if (messageEvent.isHelloEvent(messageEvent.data)) {
-            this.#heartbeatInterval = messageEvent.data.d.heartbeat_interval;
-            console.log('current heartbeatInterval ', this.#heartbeatInterval)
-            this.#sendHeartbeatInterval();
-            } else {
-           await this.#cbMsg(messageEvent);
+        const type = messageEvent?.channel?.channelEntity?.type;
+        const isNotMe = messageEvent.data.d.author.id !== this.#auth.user?.id;
+        if (type !== undefined && type in this.#cbMsg && isNotMe) {
+            await this.#cbMsg?.[type]?.(messageEvent);
         }
+
     }
 
-    onOpenConnection(event: Event): void {
+    #onOpenConnection(event: Event): void {
         this.#authMe();
         this.setStatus();
     }

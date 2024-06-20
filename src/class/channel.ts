@@ -1,5 +1,5 @@
 import { createHeaders } from "../utils/request.utils";
-import { ChannelModel } from "../channel.model";
+import { ChannelModel, ChannelType } from "../channel.model";
 import { DISCORD_API_URL } from "./discord_client";
 import { MessageDto } from "./message-dto";
 
@@ -21,8 +21,23 @@ export class Channel {
         }
     }
 
-    get channelEntity(): ChannelModel | undefined {
+    get channelEntity(): ChannelModel {
+        if (this.#channelEntity === undefined) {
+            throw new Error('')
+        }
         return this.#channelEntity
+    }
+
+    isDmMessage(): boolean {
+        return this.channelEntity?.type === ChannelType.DM;
+    }
+
+    isGroupDm(): boolean {
+        return this.channelEntity?.type === ChannelType.GROUP_DM;
+    }
+
+    isGuildMessage(): boolean {
+        return this.channelEntity?.type === ChannelType.GUILD_TEXT;
     }
 
 

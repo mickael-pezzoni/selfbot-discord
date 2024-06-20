@@ -5,10 +5,10 @@ import { MessageDto } from './message-dto';
 import { Channel } from './channel';
 import { DISCORD_API_URL } from './discord_client';
 
-export class MsgEvent implements Omit<MessageEvent, 'data'> {
-    data!: DataEvent;
-    type!: string;
-    target!: WebSocket;
+export class MsgEvent<T extends DataEvent = CreateMessageEvent> implements Omit<MessageEvent, 'data'> {
+    data!: T;
+    type?: string;
+    target?: WebSocket;
     channel?: Channel;
     #auth: Required<Auth>;
     constructor(json: object, auth: Required<Auth>) {
@@ -17,7 +17,7 @@ export class MsgEvent implements Omit<MessageEvent, 'data'> {
     }
 
     async initialize(): Promise<void> {
-        if (this.isMsgEvent(this.data)) {
+        if (this.isMsgEvent()) {
             this.channel = new Channel(this.data.d.channel_id, this.#auth.token);
             await this.channel.initialize();
         }
@@ -25,12 +25,13 @@ export class MsgEvent implements Omit<MessageEvent, 'data'> {
         return Promise.resolve();
     }
 
-    isHelloEvent(data: DataEvent = this.data): data is HelloEvent {
-        return data.op === 10;
+    isHelloEvent(this: MsgEvent<T>): this is MsgEvent<HelloEvent> {
+        return this.data.op === 10;
     }
 
-    isMsgEvent(data: DataEvent = this.data): data is CreateMessageEvent {
-        return data.t === 'MESSAGE_CREATE';
+
+    isMsgEvent(this: MsgEvent<T>): this is MsgEvent<CreateMessageEvent> {
+        return this.data.t === 'MESSAGE_CREATE';
     }
 
     async reply(content: string): Promise<unknown> {
