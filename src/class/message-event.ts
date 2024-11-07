@@ -1,60 +1,71 @@
-import {Data, MessageEvent, WebSocket} from 'ws'
-import { Auth, CreateMessageEvent, DataEvent, HelloEvent } from '../model';
+import { Auth, Message } from '../model';
 import { createHeaders } from '../utils/request.utils';
 import { MessageDto } from './message-dto';
 import { Channel } from './channel';
 import { DISCORD_API_URL } from './discord_client';
+import { DiscordWsEventImpl } from './ws-event';
+import { FunctionMessageType } from '../channel.model';
 
-export class MsgEvent<T extends DataEvent = CreateMessageEvent> implements Omit<MessageEvent, 'data'> {
-    data!: T;
-    type?: string;
-    target?: WebSocket;
-    channel?: Channel;
+export class DiscordMsgEvent extends DiscordWsEventImpl{
+    data!: Message
+    #channel?: Channel;
     #auth: Required<Auth>;
-    constructor(json: object, auth: Required<Auth>) {
-        Object.assign(this, json);
+    #functionByChannel: FunctionMessageType;
+    constructor(json: Message, auth: Required<Auth>, functionByChannel: FunctionMessageType) {
+        super()
+        this.data = json;
         this.#auth = auth;
+        this.#functionByChannel = functionByChannel;
     }
 
     async initialize(): Promise<void> {
-        if (this.isMsgEvent()) {
-            this.channel = new Channel(this.data.d.channel_id, this.#auth.token);
-            await this.channel.initialize();
+        this.#channel = new Channel(this.data.channel_id, this.#auth.token);
+        await this.#channel.initialize();
+    }
+
+    get channel(): Channel {
+        if (!this.#channel) {
+            throw new Error('Channel not found')
         }
-
-        return Promise.resolve();
+        return this.#channel;
     }
 
-    isHelloEvent(this: MsgEvent<T>): this is MsgEvent<HelloEvent> {
-        return this.data.op === 10;
-    }
-
-
-    isMsgEvent(this: MsgEvent<T>): this is MsgEvent<CreateMessageEvent> {
-        return this.data.t === 'MESSAGE_CREATE';
-    }
-
-    async reply(content: string): Promise<unknown> {
-        const data = this.data as CreateMessageEvent;
-        const oldSnowflake = data.d.id;
-        const message = new MessageDto(data.d.channel_id, {
-            content,
-            referencesMessages: data.d,
-            id: oldSnowflake
-        },  this.#auth);
+    async edit(content: string): Promise<unknown> {
         try {
-            const result = await this.channel?.sendMessage(message)
+
+            const response = await fetch(`${DISCORD_API_URL}/channels/${this.data.channel_id}/messages/${this.data.id}`, 
+            { body: JSON.stringify({ content }), method: 'PATCH', headers: createHeaders(this.#auth.token) });
+
+            if (response.status.toString().at(0) !== '2') {
+                console.log(await response.text())
+                throw new Error(`Cannot edit message {${response.statusText}}`);
+            }
+            return response.json();
+        }
+        catch (err) {
+            console.error(err);
+        }
+    }
+
+    async reply(content: string): Promise<Message | undefined> {
+        const oldSnowflake = this.data.id;
+        const message = new MessageDto(this.data.channel_id, {
+            content,
+            referencesMessages: this.data,
+            id: oldSnowflake
+        }, this.#auth);
+        try {
+            const result = await this.channel.sendMessage(message)
             return result;
 
         }
-        catch(err) {
+        catch (err) {
             console.error(err);
         }
     }
     async #addReaction(emoji: string): Promise<unknown> {
-        const data = this.data as CreateMessageEvent;
-        const response = await fetch(`${DISCORD_API_URL}/channels/${data.d.channel_id}/messages/${data.d.id}/reactions/${emoji}/@me`,
-        { method: 'PUT', headers: createHeaders(this.#auth.token)})
+        const response = await fetch(`${DISCORD_API_URL}/channels/${this.data.channel_id}/messages/${this.data.id}/reactions/${emoji}/@me`,
+            { method: 'PUT', headers: createHeaders(this.#auth.token) })
 
         if (response.status !== 200 && response.status !== 204) {
             throw new Error(`Cannot add reaction {${response.statusText}}`);
@@ -68,10 +79,21 @@ export class MsgEvent<T extends DataEvent = CreateMessageEvent> implements Omit<
         try {
             await this.#addReaction(emoji)
         }
-        catch(err) {
+        catch (err) {
             console.error(err);
         }
         return;
+    }
+
+    async execute(): Promise<void> {
+        console.log(`${[new Date().toISOString()]}: ${this.data.content}` )
+        await this.initialize();
+        const type = this.channel.channelEntity.type;
+        const isNotMe = this.data.author.id !== this.#auth.user?.id;
+        const isMe = this.data.author.id === this.#auth.user?.id;
+        if (type !== undefined && type in this.#functionByChannel && isMe) {
+            await this.#functionByChannel?.[type]?.(this);
+        }
     }
 
 

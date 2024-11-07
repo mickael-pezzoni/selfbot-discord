@@ -8,7 +8,6 @@ export class Queue {
 
     add(operation: AsyncFunction<unknown, unknown>): void{
         this.operations.push(operation);
-        console.log('nb operations ', this.operations.length);
         if (!this.#inProgress) {
             this.#execute();
         }
@@ -16,7 +15,6 @@ export class Queue {
 
     async #execute(): Promise<void> {
         this.#inProgress = true;
-        console.log('excute operations')
         await this.operations[0]();
         await this.#sleep(1000)
         this.operations.shift()

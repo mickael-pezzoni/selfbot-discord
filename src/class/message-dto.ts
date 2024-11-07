@@ -25,7 +25,7 @@ export class MessageDto implements CreateMessageDto {
     #auth: Auth;
     message_reference?: {channel_id: string, message_id: string, type: number};
     referencesMessages?: Message;
-    constructor(channelId: string, body: {content: string, id: string, referencesMessages?: Message}, auth: Required<Auth>) {
+    constructor(channelId: string, body: {content: string, id?: string, referencesMessages?: Message}, auth: Required<Auth>) {
         this.channel_id = channelId;
         this.author = auth.user;
         this.content = body.content;

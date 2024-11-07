@@ -1,5 +1,5 @@
-import { MsgEvent } from "./class/message-event";
-import { CreateMessageEvent, User } from "./model";
+import { DiscordMsgEvent } from "./class/message-event";
+import { User } from "./model";
 
   interface Role {
     id: string; // snowflake
@@ -43,10 +43,19 @@ import { CreateMessageEvent, User } from "./model";
     GUILD_MEDIA = 16
 }
 
-export type EventFunction = Partial<
-  Record<ChannelType, (event: MsgEvent<CreateMessageEvent>) => Promise<void>>
+export type FunctionMessageType = Partial<
+  Record<ChannelType, (event: DiscordMsgEvent) => Promise<void> | void>
 >;
-
+type EventFunction1 = (event: DiscordMsgEvent) => Promise<void> 
+export type EventCallback = Partial<
+  Record<ChannelType, 
+  EventFunction1 | {
+    channel?: Record<string, EventFunction1>,
+    guild?: Record<string, EventFunction1>,
+    user?: Record<string, EventFunction1>
+  }
+  >
+>;
 
   
   interface Embed {
@@ -95,9 +104,12 @@ export type EventFunction = Partial<
     }>;
   }
   
-  interface Reaction {
-    count: number;
-    me: boolean;
+  export interface Reaction {
+    //count: number;
+    message_id: string;
+    user_id: string;
+    channel_id: string;
+    //me: boolean;
     emoji: {
       id?: string; // snowflake
       name: string;

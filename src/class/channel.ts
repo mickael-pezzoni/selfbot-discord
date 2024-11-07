@@ -2,8 +2,9 @@ import { createHeaders } from "../utils/request.utils";
 import { ChannelModel, ChannelType } from "../channel.model";
 import { DISCORD_API_URL } from "./discord_client";
 import { MessageDto } from "./message-dto";
+import { Message } from "../model";
 
-export class Channel {
+export class Channel implements Partial<ChannelModel> {
     id: string;
     #token: string;
     #channelEntity?: ChannelModel;
@@ -14,9 +15,9 @@ export class Channel {
 
     async initialize(): Promise<void> {
         try {
-            this. #channelEntity = await this.get();
+            this.#channelEntity = await this.get();
         }
-        catch(err) {
+        catch (err) {
             console.error(err);
         }
     }
@@ -42,8 +43,8 @@ export class Channel {
 
 
     async get(): Promise<ChannelModel> {
-        const result = await fetch(`${DISCORD_API_URL}/channels/${this.id}`, {headers: createHeaders(this.#token)});
-    
+        const result = await fetch(`${DISCORD_API_URL}/channels/${this.id}`, { headers: createHeaders(this.#token) });
+
         if (result.status !== 200) {
             throw new Error(`Get channel`)
         }
@@ -51,9 +52,22 @@ export class Channel {
         return result.json();
     }
 
-    async sendMessage(dto: MessageDto): Promise<unknown> {
+    async sendMessage(dto: MessageDto): Promise<Message> {
         const response = await fetch(`${DISCORD_API_URL}/channels/${this.id}/messages`,
-            { method: 'POST', body: JSON.stringify(dto.body), headers: createHeaders(this.#token)})
+            { method: 'POST', body: JSON.stringify(dto.body), headers: createHeaders(this.#token) })
+
+
+        if (response.status !== 200) {
+            console.log(await response.text())
+            throw new Error(`Cannot send message {${response.statusText}}`);
+        }
+
+        return response.json();
+    }
+
+    async getMessages(limit: number = 50 ): Promise<Message[]> {
+        const response = await fetch(`${DISCORD_API_URL}/channels/${this.id}/messages?limit=${limit}`,
+            { headers: createHeaders(this.#token) })
 
 
         if (response.status !== 200) {
